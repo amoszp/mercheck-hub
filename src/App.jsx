@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { createInitialState } from './initialData.js';
 
 const STORAGE_KEY = 'mercheck-hub-data';
 
@@ -12,19 +13,15 @@ const defaultList = (name = 'New List') => ({
   items: [],
 });
 
-const defaultState = () => ({
-  lists: [defaultList('Groceries')],
-});
-
 const loadState = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState();
+    if (!raw) return createInitialState();
     const parsed = JSON.parse(raw);
-    if (!parsed?.lists?.length) return defaultState();
+    if (!parsed?.lists?.length) return createInitialState();
     return parsed;
   } catch {
-    return defaultState();
+    return createInitialState();
   }
 };
 
@@ -125,7 +122,7 @@ function App() {
     if (!confirm('Delete this list?')) return;
     setData((prev) => {
       const lists = prev.lists.filter((l) => l.id !== listId);
-      return { lists: lists.length ? lists : [defaultList()] };
+      return lists.length ? { lists } : createInitialState();
     });
     setFinders((prev) => {
       const next = { ...prev };
@@ -177,8 +174,8 @@ function App() {
   };
 
   const sortItems = (items) => {
-    const needed = items.filter((i) => i.checked);
-    const collected = items.filter((i) => !i.checked);
+    const needed = items.filter((i) => !i.checked);
+    const collected = items.filter((i) => i.checked);
     return [...needed, ...collected];
   };
 
@@ -309,7 +306,7 @@ function App() {
                     <li
                       key={item.id}
                       style={{
-                        opacity: item.checked ? 1 : 0.65,
+                        opacity: item.checked ? 0.65 : 1,
                         backgroundColor: item.checked
                           ? 'rgba(158, 129, 35, 0.15)'
                           : 'transparent',
