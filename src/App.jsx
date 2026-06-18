@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { createInitialState } from './initialData.js';
 
@@ -24,6 +24,23 @@ const loadState = () => {
     return createInitialState();
   }
 };
+
+function BronzeCheckbox({ checked, onToggle }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      className={`bronze-checkbox ${checked ? 'bronze-checkbox--checked' : ''}`}
+    >
+      {checked && <Check size={13} strokeWidth={3} className="text-background" aria-hidden />}
+    </button>
+  );
+}
 
 function App() {
   const [data, setData] = useState(loadState);
@@ -191,10 +208,12 @@ function App() {
     return list.items.some((item) => item.name.toLowerCase().includes(q));
   };
 
+  const itemLayoutTransition = { type: 'spring', stiffness: 420, damping: 32 };
+
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="flex min-h-dvh flex-col text-sand">
       <header className="sticky top-0 z-20 px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))]">
-        <h1 className="text-center text-2xl font-bold tracking-wide text-[#9e8123]">
+        <h1 className="text-center text-2xl font-bold tracking-wide text-accent">
           Mercheck Hub
         </h1>
       </header>
@@ -205,7 +224,7 @@ function App() {
             type="button"
             onClick={scrollPrev}
             aria-label="Previous list"
-            className="fixed left-2 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 text-accent shadow-lg backdrop-blur-sm"
+            className="fixed left-2 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-muted/50 bg-card/95 text-accent shadow-lg backdrop-blur-sm"
           >
             <ChevronLeft size={22} />
           </button>
@@ -216,7 +235,7 @@ function App() {
             type="button"
             onClick={scrollNext}
             aria-label="Next list"
-            className="fixed right-2 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-card/90 text-accent shadow-lg backdrop-blur-sm"
+            className="fixed right-2 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-muted/50 bg-card/95 text-accent shadow-lg backdrop-blur-sm"
           >
             <ChevronRight size={22} />
           </button>
@@ -244,7 +263,7 @@ function App() {
                 transition={{ duration: 0.25 }}
                 className="mx-4 w-[85vw] shrink-0 snap-center rounded-2xl bg-card shadow-[0px_15px_30px_rgba(0,0,0,1.0)]"
               >
-                <div className="flex items-center justify-between gap-2 border-b border-muted/40 px-4 py-3">
+                <div className="flex items-center justify-between gap-2 border-b border-muted/50 px-4 py-3">
                   {editingListId === list.id ? (
                     <input
                       autoFocus
@@ -255,13 +274,13 @@ function App() {
                         if (e.key === 'Escape') setEditingListId(null);
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      className="min-w-0 flex-1 rounded-lg bg-background/60 px-2 py-1 text-lg font-semibold text-white outline-none ring-1 ring-accent/50"
+                      className="bronze-input min-w-0 flex-1 rounded-lg px-2 py-1 text-lg font-semibold"
                     />
                   ) : (
                     <button
                       type="button"
                       onClick={() => setEditingListId(list.id)}
-                      className="min-w-0 flex-1 truncate text-left text-lg font-semibold text-white"
+                      className="min-w-0 flex-1 truncate text-left text-lg font-semibold text-sand"
                     >
                       {list.name}
                     </button>
@@ -270,7 +289,7 @@ function App() {
                     type="button"
                     onClick={() => deleteList(list.id)}
                     aria-label="Delete list"
-                    className="shrink-0 rounded-lg p-2 text-muted transition-colors hover:bg-background/40 hover:text-red-400"
+                    className="shrink-0 rounded-lg p-2 text-muted transition-colors hover:bg-background/40 hover:text-accent"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -287,24 +306,29 @@ function App() {
                       setFinders((prev) => ({ ...prev, [list.id]: e.target.value }))
                     }
                     onClick={(e) => e.stopPropagation()}
-                    className="min-w-0 flex-1 rounded-xl bg-background/60 px-3 py-2.5 text-sm text-white outline-none ring-1 ring-muted/50 focus:ring-accent/60"
+                    className="bronze-input min-w-0 flex-1 rounded-xl px-3 py-2.5 text-sm"
                   />
                   {showQuickAdd && (
                     <button
                       type="button"
                       onClick={() => addItem(list.id, finderQuery)}
                       aria-label="Quick add item"
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-background"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-accent/60 bg-accent text-background"
                     >
                       <Plus size={20} strokeWidth={2.5} />
                     </button>
                   )}
                 </div>
 
-                <ul className="max-h-[55dvh] space-y-1 overflow-y-auto px-3 pb-4 scrollbar-none">
+                <motion.ul
+                  layout
+                  className="max-h-[55dvh] space-y-1 overflow-y-auto px-3 pb-4 scrollbar-none"
+                >
                   {visible.map((item) => (
-                    <li
+                    <motion.li
                       key={item.id}
+                      layout
+                      transition={itemLayoutTransition}
                       style={{
                         opacity: item.checked ? 0.65 : 1,
                         backgroundColor: item.checked
@@ -313,12 +337,9 @@ function App() {
                       }}
                       className="flex items-center gap-2 rounded-xl px-2 py-2.5"
                     >
-                      <input
-                        type="checkbox"
+                      <BronzeCheckbox
                         checked={item.checked}
-                        onChange={() => toggleItem(list.id, item.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-5 w-5 shrink-0 cursor-pointer accent-accent"
+                        onToggle={() => toggleItem(list.id, item.id)}
                       />
 
                       {editingItemId === item.id ? (
@@ -332,13 +353,15 @@ function App() {
                             if (e.key === 'Escape') setEditingItemId(null);
                           }}
                           onClick={(e) => e.stopPropagation()}
-                          className="min-w-0 flex-1 rounded-lg bg-background/60 px-2 py-1 text-sm text-white outline-none ring-1 ring-accent/50"
+                          className="bronze-input min-w-0 flex-1 rounded-lg px-2 py-1 text-sm"
                         />
                       ) : (
                         <button
                           type="button"
                           onClick={() => setEditingItemId(item.id)}
-                          className="min-w-0 flex-1 truncate text-left text-sm text-white"
+                          className={`min-w-0 flex-1 truncate text-left text-sm ${
+                            item.checked ? 'text-sand-dim' : 'text-sand'
+                          }`}
                         >
                           {item.name}
                         </button>
@@ -351,11 +374,11 @@ function App() {
                             e.stopPropagation();
                             changeQuantity(list.id, item.id, -1);
                           }}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-background/50 text-accent"
+                          className="bronze-qty-btn"
                         >
                           −
                         </button>
-                        <span className="w-6 text-center text-sm tabular-nums text-white/80">
+                        <span className="w-6 text-center text-sm tabular-nums text-sand-dim">
                           {item.quantity}
                         </span>
                         <button
@@ -364,14 +387,14 @@ function App() {
                             e.stopPropagation();
                             changeQuantity(list.id, item.id, 1);
                           }}
-                          className="flex h-7 w-7 items-center justify-center rounded-lg bg-background/50 text-accent"
+                          className="bronze-qty-btn"
                         >
                           +
                         </button>
                       </div>
-                    </li>
+                    </motion.li>
                   ))}
-                </ul>
+                </motion.ul>
               </motion.section>
             );
           })}
@@ -385,10 +408,10 @@ function App() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25 }}
             onClick={addList}
-            className="mx-4 flex w-[85vw] shrink-0 snap-center flex-col items-center justify-center rounded-2xl border-2 border-dashed border-muted/60 bg-card/50 shadow-[0px_15px_30px_rgba(0,0,0,1.0)] min-h-[280px]"
+            className="mx-4 flex min-h-[280px] w-[85vw] shrink-0 snap-center flex-col items-center justify-center rounded-2xl border-2 border-dashed border-muted/60 bg-card/50 shadow-[0px_15px_30px_rgba(0,0,0,1.0)]"
           >
             <Plus size={36} className="mb-2 text-accent" strokeWidth={1.5} />
-            <span className="text-sm font-medium text-white/70">Add New List</span>
+            <span className="text-sm font-medium text-sand-dim">Add New List</span>
           </motion.button>
         </div>
       </div>
