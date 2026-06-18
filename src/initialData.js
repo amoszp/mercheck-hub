@@ -3,7 +3,7 @@ const createId = () => crypto.randomUUID();
 const item = (name, quantity = 1) => ({
   id: createId(),
   name,
-  checked: false,
+  checked: true,
   quantity,
 });
 

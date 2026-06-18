@@ -157,7 +157,7 @@ function App() {
     const trimmed = name.trim();
     if (!trimmed) return;
     updateList(listId, (list) => ({
-      items: [...list.items, { id: createId(), name: trimmed, checked: false, quantity: 1 }],
+      items: [...list.items, { id: createId(), name: trimmed, checked: true, quantity: 1 }],
     }));
     setFinders((prev) => ({ ...prev, [listId]: '' }));
     requestAnimationFrame(() => finderRefs.current[listId]?.focus());
@@ -191,8 +191,8 @@ function App() {
   };
 
   const sortItems = (items) => {
-    const needed = items.filter((i) => !i.checked);
-    const collected = items.filter((i) => i.checked);
+    const needed = items.filter((i) => i.checked);
+    const collected = items.filter((i) => !i.checked);
     return [...needed, ...collected];
   };
 
@@ -330,10 +330,10 @@ function App() {
                       layout
                       transition={itemLayoutTransition}
                       style={{
-                        opacity: item.checked ? 0.65 : 1,
+                        opacity: item.checked ? 1 : 0.65,
                         backgroundColor: item.checked
-                          ? 'rgba(158, 129, 35, 0.15)'
-                          : 'transparent',
+                          ? 'transparent'
+                          : 'rgba(158, 129, 35, 0.15)',
                       }}
                       className="flex items-center gap-2 rounded-xl px-2 py-2.5"
                     >
@@ -360,7 +360,7 @@ function App() {
                           type="button"
                           onClick={() => setEditingItemId(item.id)}
                           className={`min-w-0 flex-1 truncate text-left text-sm ${
-                            item.checked ? 'text-sand-dim' : 'text-sand'
+                            item.checked ? 'text-sand' : 'text-sand-dim'
                           }`}
                         >
                           {item.name}
