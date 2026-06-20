@@ -190,6 +190,12 @@ function App() {
     }));
   };
 
+  const deleteItem = (listId, itemId) => {
+    updateList(listId, (list) => ({
+      items: list.items.filter((item) => item.id !== itemId),
+    }));
+  };
+
   const sortItems = (items) => {
     const needed = items.filter((i) => i.checked);
     const collected = items.filter((i) => !i.checked);
@@ -261,7 +267,8 @@ function App() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25 }}
-                className="mx-4 w-[85vw] shrink-0 snap-center rounded-2xl bg-card shadow-[0px_15px_30px_rgba(0,0,0,1.0)]"
+                className="mx-4 mb-8 flex w-[85vw] shrink-0 snap-center flex-col rounded-2xl bg-card shadow-[0px_15px_30px_rgba(0,0,0,1.0)]"
+                style={{ height: 'calc(100vh - 170px)' }}
               >
                 <div className="flex items-center justify-between gap-2 border-b border-muted/50 px-4 py-3">
                   {editingListId === list.id ? (
@@ -322,7 +329,7 @@ function App() {
 
                 <motion.ul
                   layout
-                  className="max-h-[55dvh] space-y-1 overflow-y-auto px-3 pb-4 scrollbar-none"
+                  className="flex-1 space-y-1 overflow-y-auto px-3 pb-4 scrollbar-none"
                 >
                   {visible.map((item) => (
                     <motion.li
@@ -359,7 +366,7 @@ function App() {
                         <button
                           type="button"
                           onClick={() => setEditingItemId(item.id)}
-                          className={`min-w-0 flex-1 truncate text-left text-sm ${
+                          className={`min-w-0 flex-1 truncate text-left text-sm font-medium ${
                             item.checked ? 'text-sand' : 'text-sand-dim'
                           }`}
                         >
@@ -392,6 +399,18 @@ function App() {
                           +
                         </button>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteItem(list.id, item.id);
+                        }}
+                        aria-label="Delete item"
+                        className="shrink-0 rounded-lg p-1.5 text-muted transition-colors hover:bg-background/40 hover:text-accent"
+                      >
+                        <Trash2 size={14} strokeWidth={2} />
+                      </button>
                     </motion.li>
                   ))}
                 </motion.ul>
@@ -408,7 +427,8 @@ function App() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.25 }}
             onClick={addList}
-            className="mx-4 flex min-h-[280px] w-[85vw] shrink-0 snap-center flex-col items-center justify-center rounded-2xl border-2 border-dashed border-muted/60 bg-card/50 shadow-[0px_15px_30px_rgba(0,0,0,1.0)]"
+            className="mx-4 mb-8 flex w-[85vw] shrink-0 snap-center flex-col items-center justify-center rounded-2xl border-2 border-dashed border-muted/60 bg-card/50 shadow-[0px_15px_30px_rgba(0,0,0,1.0)]"
+            style={{ height: 'calc(100vh - 170px)' }}
           >
             <Plus size={36} className="mb-2 text-accent" strokeWidth={1.5} />
             <span className="text-sm font-medium text-sand-dim">Add New List</span>
