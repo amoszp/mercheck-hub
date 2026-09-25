@@ -1,6 +1,32 @@
-# Mercheck Hub
+<p align="center">
+  <img src="public/pwa-512x512.png" width="120" alt="Mercheck Hub icon" />
+</p>
 
-A calm, glassy, mobile-first shopping list PWA. Create multiple lists, check items off, pin the ones you use often, and everything is saved locally on the device — no account, no backend.
+<h1 align="center">Mercheck Hub</h1>
+
+<p align="center">
+  A calm, glassy, mobile-first hub for every checklist you keep in your head.
+</p>
+
+## What it's for
+
+Most list apps assume you only need one kind of list. Mercheck Hub doesn't — it's a home for **all** of them, side by side, each one just a tap away:
+
+- 🛒 **The weekly supermarket run** — check items off as you drop them in the cart
+- 🏠 **Things the house needs** — light bulbs, batteries, whatever's run out
+- ✈️ **Packing for a trip** — never re-derive "did I bring a charger?" at the airport again
+- 🐾 **Supplies for your pets** — food, litter, meds, on their own list
+- 📋 **Literally anything else** — Mercheck Hub doesn't care what's on the list, it just makes it fast to capture, check off, and come back to
+
+The value isn't any single list — it's not having to juggle five different notes apps, or a sticky note that gets lost, to hold them all. Pin the lists you use constantly, tuck away the ones you don't, and everything is right there next time you open the app.
+
+## How it works
+
+- **Multiple lists, one hub** — create as many as you need, named however you like
+- **Pin your regulars** — keep the lists you touch weekly at the top
+- **Inline editing** — rename lists and items in place, no separate edit screen
+- **Installable PWA** — add it to your home screen and it opens like a native app, icon and all
+- **Everything stays on your device** — data lives in the browser's local storage; no account, no server, no sign-up
 
 ## Stack
 
@@ -9,7 +35,7 @@ A calm, glassy, mobile-first shopping list PWA. Create multiple lists, check ite
 - **Framer Motion** for the list/item animations
 - **Lucide React** for icons
 - **vite-plugin-pwa** — installable PWA with an auto-updating service worker and manifest (standalone display, portrait orientation)
-- Data is persisted in `localStorage` (see `src/lib/storage.js` and `src/lib/useLists.js`) — nothing is sent to a server
+- Data is persisted in `localStorage` (see `src/lib/storage.js` and `src/lib/useLists.js`)
 
 ## Project structure
 
