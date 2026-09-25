@@ -12,8 +12,9 @@ export default defineConfig({
         name: 'Mercheck Hub',
         short_name: 'Mercheck',
         description: 'Mobile-first shopping list hub',
-        theme_color: '#19171b',
-        background_color: '#19171b',
+        theme_color: '#100c05',
+        // Matches the app icon's own backdrop so the splash screen is seamless.
+        background_color: '#0f0a12',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',

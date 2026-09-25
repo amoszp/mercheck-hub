@@ -1,440 +1,173 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, ChevronLeft, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { createInitialState } from './initialData.js';
+import { Plus } from 'lucide-react';
+import Dock from './components/Dock.jsx';
+import ListCard from './components/ListCard.jsx';
+import SettingsMenu from './components/SettingsMenu.jsx';
+import Toast from './components/Toast.jsx';
+import { useLists } from './lib/useLists.js';
+import { useSettings } from './lib/settings.js';
 
-const STORAGE_KEY = 'mercheck-hub-data';
-
-const createId = () => crypto.randomUUID();
-
-const defaultList = (name = 'New List') => ({
-  id: createId(),
-  name,
-  items: [],
-});
-
-const loadState = () => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return createInitialState();
-    const parsed = JSON.parse(raw);
-    if (!parsed?.lists?.length) return createInitialState();
-    return parsed;
-  } catch {
-    return createInitialState();
-  }
-};
-
-function BronzeCheckbox({ checked, onToggle }) {
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
-      className={`bronze-checkbox ${checked ? 'bronze-checkbox--checked' : ''}`}
-    >
-      {checked && <Check size={13} strokeWidth={3} className="text-background" aria-hidden />}
-    </button>
-  );
-}
+const cardTransition = { type: 'spring', stiffness: 260, damping: 28 };
 
 function App() {
-  const [data, setData] = useState(loadState);
-  const [finders, setFinders] = useState({});
-  const [editingListId, setEditingListId] = useState(null);
-  const [editingItemId, setEditingItemId] = useState(null);
-  const [scrollIndex, setScrollIndex] = useState(0);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(true);
+  const lists = useLists();
+  const { data, toast, dismissToast, runUndo, addList } = lists;
+  const [settings, updateSettings] = useSettings();
+
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [newListId, setNewListId] = useState(null);
 
   const carouselRef = useRef(null);
-  const cardRefs = useRef([]);
-  const finderRefs = useRef({});
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }, [data]);
+  const totalCards = data.lists.length + 1; // every list + the "new list" card
+  const active = Math.min(activeIndex, totalCards - 1);
+  const stepRef = useRef({ active, last: totalCards - 1 });
+  stepRef.current = { active, last: totalCards - 1 };
 
-  const totalCards = data.lists.length + 1;
-
-  const updateScrollState = useCallback(() => {
+  const updateActive = useCallback(() => {
     const el = carouselRef.current;
     if (!el) return;
-
-    const scrollLeft = el.scrollLeft;
-    const maxScroll = el.scrollWidth - el.clientWidth;
-    setCanScrollLeft(scrollLeft > 8);
-    setCanScrollRight(scrollLeft < maxScroll - 8);
-
-    const cards = cardRefs.current.filter(Boolean);
-    if (!cards.length) return;
-
+    const center = el.scrollLeft + el.clientWidth / 2;
     let closest = 0;
-    let minDist = Infinity;
-    const center = scrollLeft + el.clientWidth / 2;
-
-    cards.forEach((card, i) => {
-      const cardCenter = card.offsetLeft + card.offsetWidth / 2;
-      const dist = Math.abs(center - cardCenter);
-      if (dist < minDist) {
-        minDist = dist;
-        closest = i;
+    let minDistance = Infinity;
+    Array.from(el.children).forEach((card, index) => {
+      const distance = Math.abs(center - (card.offsetLeft + card.offsetWidth / 2));
+      if (distance < minDistance) {
+        minDistance = distance;
+        closest = index;
       }
     });
+    setActiveIndex(closest);
+  }, []);
 
-    setScrollIndex(closest);
+  const scrollToIndex = useCallback((index) => {
+    const el = carouselRef.current;
+    const card = el?.children[index];
+    if (!card) return;
+    el.scrollTo({
+      left: card.offsetLeft - (el.clientWidth - card.offsetWidth) / 2,
+      behavior: 'smooth',
+    });
   }, []);
 
   useEffect(() => {
     const el = carouselRef.current;
-    if (!el) return;
-
-    updateScrollState();
-    el.addEventListener('scroll', updateScrollState, { passive: true });
-    window.addEventListener('resize', updateScrollState);
-
+    if (!el) return undefined;
+    el.addEventListener('scroll', updateActive, { passive: true });
+    window.addEventListener('resize', updateActive);
     return () => {
-      el.removeEventListener('scroll', updateScrollState);
-      window.removeEventListener('resize', updateScrollState);
+      el.removeEventListener('scroll', updateActive);
+      window.removeEventListener('resize', updateActive);
     };
-  }, [data.lists.length, updateScrollState]);
+  }, [updateActive]);
 
-  const scrollToCard = (index) => {
-    const card = cardRefs.current[index];
-    if (!card || !carouselRef.current) return;
-    carouselRef.current.scrollTo({
-      left: card.offsetLeft - (carouselRef.current.clientWidth - card.offsetWidth) / 2,
-      behavior: 'smooth',
-    });
-  };
+  // Cards were added/removed: re-evaluate which one is centred.
+  useEffect(updateActive, [data.lists.length, updateActive]);
 
-  const scrollPrev = () => scrollToCard(Math.max(0, scrollIndex - 1));
-  const scrollNext = () => scrollToCard(Math.min(totalCards - 1, scrollIndex + 1));
+  // A freshly created list scrolls into view (its title is already in edit mode).
+  useEffect(() => {
+    if (!newListId) return;
+    const index = data.lists.findIndex((list) => list.id === newListId);
+    if (index !== -1) scrollToIndex(index);
+    setNewListId(null);
+  }, [newListId, data.lists, scrollToIndex]);
 
-  const updateList = (listId, updater) => {
-    setData((prev) => ({
-      ...prev,
-      lists: prev.lists.map((list) =>
-        list.id === listId ? { ...list, ...updater(list) } : list,
-      ),
-    }));
-  };
+  // Move one card left/right from wherever the carousel currently is.
+  const stepBy = useCallback(
+    (delta) => {
+      const target = Math.min(Math.max(stepRef.current.active + delta, 0), stepRef.current.last);
+      scrollToIndex(target);
+    },
+    [scrollToIndex],
+  );
 
-  const addList = () => {
-    setData((prev) => {
-      const nextLength = prev.lists.length + 1;
-      setTimeout(() => scrollToCard(nextLength - 1), 80);
-      return {
-        ...prev,
-        lists: [...prev.lists, defaultList()],
-      };
-    });
-  };
+  // Left / right arrows flip between lists on desktop (unless typing).
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.target.closest?.('input, textarea, [contenteditable="true"]')) return;
+      if (e.key === 'ArrowLeft') stepBy(-1);
+      if (e.key === 'ArrowRight') stepBy(1);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [stepBy]);
 
-  const deleteList = (listId) => {
-    if (!confirm('Delete this list?')) return;
-    setData((prev) => {
-      const lists = prev.lists.filter((l) => l.id !== listId);
-      return lists.length ? { lists } : createInitialState();
-    });
-    setFinders((prev) => {
-      const next = { ...prev };
-      delete next[listId];
-      return next;
-    });
-  };
+  // A plain mouse wheel only scrolls vertically, so it flips between lists
+  // unless the pointer is over a list that can itself scroll. Horizontal input
+  // (trackpad, shift+wheel, touch) is left to the browser's native scrolling.
+  useEffect(() => {
+    const el = carouselRef.current;
+    if (!el) return undefined;
+    let lockedUntil = 0;
+    const onWheel = (e) => {
+      if (Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+      const list = e.target.closest?.('ul');
+      if (list && list.scrollHeight > list.clientHeight) return;
+      e.preventDefault();
+      const now = performance.now();
+      if (now < lockedUntil) return; // one step per wheel burst
+      lockedUntil = now + 450;
+      stepBy(e.deltaY > 0 ? 1 : -1);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [stepBy]);
 
-  const renameList = (listId, name) => {
-    updateList(listId, () => ({ name: name.trim() || 'Untitled' }));
-    setEditingListId(null);
-  };
-
-  const addItem = (listId, name) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    updateList(listId, (list) => ({
-      items: [...list.items, { id: createId(), name: trimmed, checked: true, quantity: 1 }],
-    }));
-    setFinders((prev) => ({ ...prev, [listId]: '' }));
-    requestAnimationFrame(() => finderRefs.current[listId]?.focus());
-  };
-
-  const renameItem = (listId, itemId, name) => {
-    updateList(listId, (list) => ({
-      items: list.items.map((item) =>
-        item.id === itemId ? { ...item, name: name.trim() || 'Item' } : item,
-      ),
-    }));
-    setEditingItemId(null);
-  };
-
-  const toggleItem = (listId, itemId) => {
-    updateList(listId, (list) => ({
-      items: list.items.map((item) =>
-        item.id === itemId ? { ...item, checked: !item.checked } : item,
-      ),
-    }));
-  };
-
-  const changeQuantity = (listId, itemId, delta) => {
-    updateList(listId, (list) => ({
-      items: list.items.map((item) => {
-        if (item.id !== itemId) return item;
-        const next = Math.max(1, item.quantity + delta);
-        return { ...item, quantity: next };
-      }),
-    }));
-  };
-
-  const deleteItem = (listId, itemId) => {
-    updateList(listId, (list) => ({
-      items: list.items.filter((item) => item.id !== itemId),
-    }));
-  };
-
-  const sortItems = (items) => {
-    const needed = items.filter((i) => i.checked);
-    const collected = items.filter((i) => !i.checked);
-    return [...needed, ...collected];
-  };
-
-  const filterItems = (items, query) => {
-    const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((item) => item.name.toLowerCase().includes(q));
-  };
-
-  const queryMatchesExisting = (list, query) => {
-    const q = query.trim().toLowerCase();
-    if (!q) return true;
-    return list.items.some((item) => item.name.toLowerCase().includes(q));
-  };
-
-  const itemLayoutTransition = { type: 'spring', stiffness: 420, damping: 32 };
+  const handleAddList = () => setNewListId(addList());
 
   return (
-    <div className="flex min-h-dvh flex-col text-sand">
-      <header className="sticky top-0 z-20 px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))]">
-        <h1 className="text-center text-2xl font-bold tracking-wide text-accent">
-          Mercheck Hub
-        </h1>
-      </header>
+    <div className="relative flex h-dvh flex-col overflow-hidden">
+      <div className="aurora" aria-hidden>
+        <i />
+        <i />
+        <i />
+      </div>
 
-      <div className="relative flex-1">
-        {canScrollLeft && (
-          <button
-            type="button"
-            onClick={scrollPrev}
-            aria-label="Previous list"
-            className="fixed left-2 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-muted/50 bg-card/95 text-accent shadow-lg backdrop-blur-sm"
-          >
-            <ChevronLeft size={22} />
-          </button>
-        )}
-
-        {canScrollRight && (
-          <button
-            type="button"
-            onClick={scrollNext}
-            aria-label="Next list"
-            className="fixed right-2 top-1/2 z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-muted/50 bg-card/95 text-accent shadow-lg backdrop-blur-sm"
-          >
-            <ChevronRight size={22} />
-          </button>
-        )}
-
+      {/* -mb-6: the footer overlaps the carousel's bottom padding, which exists
+          only so the cards' drop shadows aren't clipped by the scroller. */}
+      <main className="relative z-10 -mb-6 min-h-0 flex-1 pt-[max(0.5rem,env(safe-area-inset-top))]">
         <div
           ref={carouselRef}
-          className="flex w-full snap-x snap-mandatory overflow-x-auto scrollbar-none pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2"
+          style={{
+            '--card-w': 'min(88vw, 24rem)',
+            paddingInline: 'calc((100% - var(--card-w)) / 2)',
+          }}
+          className="relative flex h-full snap-x snap-mandatory items-stretch gap-4 overflow-x-auto overscroll-x-contain pb-10 pt-3 scrollbar-none"
         >
-          {data.lists.map((list, listIndex) => {
-            const finderQuery = finders[list.id] ?? '';
-            const sorted = sortItems(list.items);
-            const visible = filterItems(sorted, finderQuery);
-            const showQuickAdd =
-              finderQuery.trim().length > 0 && !queryMatchesExisting(list, finderQuery);
-
-            return (
-              <motion.section
-                key={list.id}
-                ref={(el) => {
-                  cardRefs.current[listIndex] = el;
-                }}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25 }}
-                className="mx-4 mb-8 flex w-[85vw] shrink-0 snap-center flex-col rounded-2xl bg-card shadow-[0px_15px_30px_rgba(0,0,0,1.0)]"
-                style={{ height: 'calc(100vh - 170px)' }}
-              >
-                <div className="flex items-center justify-between gap-2 border-b border-muted/50 px-4 py-3">
-                  {editingListId === list.id ? (
-                    <input
-                      autoFocus
-                      defaultValue={list.name}
-                      onBlur={(e) => renameList(list.id, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') renameList(list.id, e.currentTarget.value);
-                        if (e.key === 'Escape') setEditingListId(null);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="bronze-input min-w-0 flex-1 rounded-lg px-2 py-1 text-lg font-semibold"
-                    />
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setEditingListId(list.id)}
-                      className="min-w-0 flex-1 truncate text-left text-lg font-semibold text-sand"
-                    >
-                      {list.name}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => deleteList(list.id)}
-                    aria-label="Delete list"
-                    className="shrink-0 rounded-lg p-2 text-muted transition-colors hover:bg-background/40 hover:text-accent"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2 px-4 py-3">
-                  <input
-                    ref={(el) => {
-                      finderRefs.current[list.id] = el;
-                    }}
-                    type="text"
-                    value={finderQuery}
-                    onChange={(e) =>
-                      setFinders((prev) => ({ ...prev, [list.id]: e.target.value }))
-                    }
-                    onClick={(e) => e.stopPropagation()}
-                    className="bronze-input min-w-0 flex-1 rounded-xl px-3 py-2.5 text-sm"
-                  />
-                  {showQuickAdd && (
-                    <button
-                      type="button"
-                      onClick={() => addItem(list.id, finderQuery)}
-                      aria-label="Quick add item"
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-accent/60 bg-accent text-background"
-                    >
-                      <Plus size={20} strokeWidth={2.5} />
-                    </button>
-                  )}
-                </div>
-
-                <motion.ul
-                  layout
-                  className="flex-1 space-y-1 overflow-y-auto px-3 pb-4 scrollbar-none"
-                >
-                  {visible.map((item) => (
-                    <motion.li
-                      key={item.id}
-                      layout
-                      transition={itemLayoutTransition}
-                      style={{
-                        opacity: item.checked ? 1 : 0.65,
-                        backgroundColor: item.checked
-                          ? 'transparent'
-                          : 'rgba(158, 129, 35, 0.15)',
-                      }}
-                      className="flex items-center gap-2 rounded-xl px-2 py-2.5"
-                    >
-                      <BronzeCheckbox
-                        checked={item.checked}
-                        onToggle={() => toggleItem(list.id, item.id)}
-                      />
-
-                      {editingItemId === item.id ? (
-                        <input
-                          autoFocus
-                          defaultValue={item.name}
-                          onBlur={(e) => renameItem(list.id, item.id, e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter')
-                              renameItem(list.id, item.id, e.currentTarget.value);
-                            if (e.key === 'Escape') setEditingItemId(null);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                          className="bronze-input min-w-0 flex-1 rounded-lg px-2 py-1 text-sm"
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setEditingItemId(item.id)}
-                          className={`min-w-0 flex-1 truncate text-left text-sm font-medium ${
-                            item.checked ? 'text-sand' : 'text-sand-dim'
-                          }`}
-                        >
-                          {item.name}
-                        </button>
-                      )}
-
-                      <div className="flex shrink-0 items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            changeQuantity(list.id, item.id, -1);
-                          }}
-                          className="bronze-qty-btn"
-                        >
-                          −
-                        </button>
-                        <span className="w-6 text-center text-sm tabular-nums text-sand-dim">
-                          {item.quantity}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            changeQuantity(list.id, item.id, 1);
-                          }}
-                          className="bronze-qty-btn"
-                        >
-                          +
-                        </button>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteItem(list.id, item.id);
-                        }}
-                        aria-label="Delete item"
-                        className="shrink-0 rounded-lg p-1.5 text-muted transition-colors hover:bg-background/40 hover:text-accent"
-                      >
-                        <Trash2 size={14} strokeWidth={2} />
-                      </button>
-                    </motion.li>
-                  ))}
-                </motion.ul>
-              </motion.section>
-            );
-          })}
+          {data.lists.map((list, index) => (
+            <ListCard
+              key={list.id}
+              list={list}
+              isActive={index === active}
+              autoEdit={list.id === newListId}
+              showQuantity={settings.showQuantity}
+              actions={lists}
+            />
+          ))}
 
           <motion.button
             type="button"
-            ref={(el) => {
-              cardRefs.current[data.lists.length] = el;
-            }}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
-            onClick={addList}
-            className="mx-4 mb-8 flex w-[85vw] shrink-0 snap-center flex-col items-center justify-center rounded-2xl border-2 border-dashed border-muted/60 bg-card/50 shadow-[0px_15px_30px_rgba(0,0,0,1.0)]"
-            style={{ height: 'calc(100vh - 170px)' }}
+            onClick={handleAddList}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: active === data.lists.length ? 1 : 0.5, y: 0 }}
+            transition={cardTransition}
+            className="flex h-full w-[var(--card-w)] shrink-0 snap-center flex-col items-center justify-center gap-3 rounded-[28px] border border-dashed border-fg/20 bg-fg/[0.03] text-fg/60 transition-colors hover:bg-fg/[0.06] hover:text-fg"
           >
-            <Plus size={36} className="mb-2 text-accent" strokeWidth={1.5} />
-            <span className="text-sm font-medium text-sand-dim">Add New List</span>
+            <span className="glass flex h-14 w-14 items-center justify-center rounded-full">
+              <Plus size={26} strokeWidth={1.75} />
+            </span>
+            <span className="text-sm font-medium">New list</span>
           </motion.button>
         </div>
-      </div>
+      </main>
+
+      <footer className="relative z-10 flex items-center justify-center gap-2 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
+        <Dock lists={data.lists} activeIndex={active} onSelect={scrollToIndex} />
+        <SettingsMenu settings={settings} onChange={updateSettings} />
+      </footer>
+
+      <Toast toast={toast} onUndo={runUndo} onDismiss={dismissToast} />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-const createId = () => crypto.randomUUID();
+import { createId } from './lib/ids.js';
 
 const item = (name, quantity = 1) => ({
   id: createId(),
